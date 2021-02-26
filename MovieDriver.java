@@ -5,8 +5,6 @@ import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Statement;
 
-//test comment
-
 public class MovieDriver {
 
        public static void main(String[] args) {
