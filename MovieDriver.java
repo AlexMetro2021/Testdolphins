@@ -51,7 +51,7 @@ public class MovieDriver {
               }
        }
        
-       static void createMovie(Connection conn) {
+      public static void createMovie(Connection conn) {
               
               try {  
                String sql = "INSERT INTO Movies (english_name, native_name, year_made) VALUES (?, ?, ?)";
@@ -77,7 +77,7 @@ public class MovieDriver {
                
        }
        
-       static void deleteMovie(Connection conn) {
+      public static void deleteMovie(Connection conn) {
               try {
                      
                      
@@ -95,7 +95,7 @@ public class MovieDriver {
               }
        }
        
-       static void updateMovie(Connection conn) {
+      public static void updateMovie(Connection conn) {
               try {
                      
                      String sql = "UPDATE Movies SET english_name=?, native_name=?, year_made=? WHERE english_name=?";
@@ -115,7 +115,7 @@ public class MovieDriver {
               }
        }
        
-       static void readMovie(Connection conn) {
+      public static void readMovie(Connection conn) {
     	   try {
                String sql = "SELECT * FROM Movies where movie_id = 291";
                  
