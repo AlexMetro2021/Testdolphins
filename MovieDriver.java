@@ -52,7 +52,7 @@ public class MovieDriver {
               System.out.println("Enter the year_made:");
               String  yr_made = scanner.nextLine();
               Integer.parseInt(yr_made);
-     		  int year_made = Integer.parseInt(yr_made);
+     		      int year_made = Integer.parseInt(yr_made);
 
 
               System.out.println("Enter the song title:");
