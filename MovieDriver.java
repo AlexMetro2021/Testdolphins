@@ -18,7 +18,7 @@ public class MovieDriver {
 
 
               try {
-                     String dbURL = "jdbc:mysql://localhost:3306/odmb";
+                     String dbURL = "jdbc:mysql://localhost:3306/omdb";
                   String username = "root";
                   String password = "";
 
