@@ -50,7 +50,7 @@ public class MovieDriver {
 				System.out.println("year_made " + year_made + ", native_name " + native_name + ", title " + title);
 				String status = processMovieSongs(native_name, year_made, title);
 
-				// updateExecutionStatus(conn, id, status);
+				updateExecutionStatus(id, status);
 
 			}
 			
