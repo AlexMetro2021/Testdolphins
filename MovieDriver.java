@@ -4,6 +4,7 @@ import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Statement;
+import java.util.concurrent.ThreadLocalRandom;
 
 public class MovieDriver {
 
@@ -17,8 +18,50 @@ public class MovieDriver {
 			}
 
 
+			readMPRTestData(conn);
+			//readMSTestData(conn);
+		} catch (SQLException ex) {
+			ex.printStackTrace();
 
-			readMSTestData(conn);
+		}
+
+	}
+	
+	static void readMPRTestData(Connection conn) {
+		try {
+
+			String sql = "SELECT * FROM `mpr_test_data` WHERE 1";
+			PreparedStatement statement = conn.prepareStatement(sql);
+
+			ResultSet result = statement.executeQuery();
+
+			int year_made;
+			String native_name;
+			String stage_name;
+			String role;
+			String screen_name;
+			int id;
+
+			while (result.next()) {
+
+				id = result.getInt("id");
+				year_made = result.getInt("year_made");
+
+				native_name = result.getString("native_name");
+				stage_name = result.getString("stage_name");
+				role = result.getString("role");
+				screen_name = result.getString("screen_name");
+				
+
+				System.out.println("year_made " + year_made + ", native_name " + native_name + ", stage_name " + stage_name);
+				String status = processMoviePeople(native_name, year_made, stage_name, screen_name, role);
+				System.out.println("status: " + status);
+				updateExecutionStatusMoviePeople(id, status);
+
+			}
+			
+			result.close();
+
 		} catch (SQLException ex) {
 			ex.printStackTrace();
 
@@ -26,6 +69,55 @@ public class MovieDriver {
 
 	}
 
+	public static String processMoviePeople(String native_name, int year_made, String stage_name, String screen_name, String role) throws SQLException {
+
+		Connection conn = createConnection();
+
+		String status;
+
+		int movie_id = readMovieIdByNativeNameAndYearMade(conn, native_name, year_made);
+		if (movie_id > 0) {
+			System.out.println("This movie is already present");
+			status = "[2] M ignored";
+		} else {
+			System.out.println("Movie does not exist in the db, it will be added");
+
+			createMovie(conn, native_name, native_name, year_made);
+			movie_id = readMovieIdByNativeNameAndYearMade(conn, native_name, year_made);
+			status = "[1] M created";
+		}
+
+		int person_id = readPersonIdByStageName(conn, stage_name);
+		if (person_id > 0) {
+			System.out.println("This person is already present");
+			status = status + "[4] P ignored";
+		} else {
+			System.out.println("Person does not exist in the db and will be added");
+
+			person_id = createPerson(conn, stage_name);
+			
+			if(person_id > 0) {
+
+				status = status + "[3] P created";
+			}  else {
+				status = status + "[3] P create failed";
+			}
+		}
+
+		if (readByMovieIdPersonId(conn, movie_id, person_id)) {
+			System.out.println("The movie_people entry is already present");
+			status = status + "[6] R ignored";
+		} else {
+			System.out.println("The movie_people entry does not exist in the db, it will be added");
+
+			createMoviePeopleEntry(conn, movie_id, person_id, role, screen_name);
+			status = status + "[5] R created";
+
+		}
+		conn.close();
+		
+		return status;
+	}
 	static void readMSTestData(Connection conn) {
 		try {
 
@@ -128,6 +220,23 @@ public class MovieDriver {
 			ex.printStackTrace();
 		}
 	}
+	
+	static void updateExecutionStatusMoviePeople(int id, String execution_status) {
+		try {
+
+			Connection conn = createConnection();
+			String sql = "update mpr_test_data set execution_status=? where id = ? ";
+
+			PreparedStatement statement = conn.prepareStatement(sql);
+			statement.setString(1, execution_status);
+			statement.setInt(2, id);
+
+			statement.executeUpdate();
+			conn.close();
+		} catch (SQLException ex) {
+			ex.printStackTrace();
+		}
+	}
 
 	static void createMovie(Connection conn, String english_name, String native_name, int year_made) {
 
@@ -166,6 +275,29 @@ public class MovieDriver {
 		}
 
 	}
+	
+	static int createPerson(Connection conn, String stage_name) {
+
+		try {
+			String sql = "INSERT INTO people (people_id, stage_name) VALUES (?,?)";
+
+			PreparedStatement statement = conn.prepareStatement(sql);
+			
+			int people_id = ThreadLocalRandom.current().nextInt(6000, 10000);
+			statement.setInt(1, people_id);
+			statement.setString(2, stage_name);
+
+			int rowsInserted = statement.executeUpdate();
+			if (rowsInserted > 0) {
+				System.out.println("A new person was inserted successfully!");
+			}
+			return people_id;
+		} catch (SQLException ex) {
+			ex.printStackTrace();
+			return -1;
+		}
+
+	}
 
 	static void createMovieSongEntry(Connection conn, int movie_id, int song_id) {
 
@@ -179,6 +311,27 @@ public class MovieDriver {
 			int rowsInserted = statement.executeUpdate();
 			if (rowsInserted > 0) {
 				System.out.println("A new movie_song was inserted successfully!");
+			}
+		} catch (SQLException ex) {
+			ex.printStackTrace();
+		}
+
+	}
+	
+	static void createMoviePeopleEntry(Connection conn, int movie_id, int people_id, String role, String screen_name) {
+
+		try {
+			String sql = "INSERT INTO movie_people (movie_id , people_id, role, screen_name) VALUES (?, ?, ?, ?)";
+
+			PreparedStatement statement = conn.prepareStatement(sql);
+			statement.setInt(1, movie_id);
+			statement.setInt(2, people_id);
+			statement.setString(3,  role);
+			statement.setString(4,  screen_name);
+
+			int rowsInserted = statement.executeUpdate();
+			if (rowsInserted > 0) {
+				System.out.println("A new movie_people was inserted successfully!");
 			}
 		} catch (SQLException ex) {
 			ex.printStackTrace();
@@ -240,6 +393,33 @@ public class MovieDriver {
 		}
 
 	}
+	
+	static int readPersonIdByStageName(Connection conn, String stage_name) {
+		try {
+
+			String sql = "SELECT * from people where stage_name=?";
+			PreparedStatement statement = conn.prepareStatement(sql);
+			statement.setString(1, stage_name);
+
+			ResultSet result = statement.executeQuery();
+
+			if (result.next()) {
+				int res = result.getInt("people_id");
+				result.close();
+				return res;
+
+			} else {
+				result.close();
+				return -1;
+			}
+
+		} catch (SQLException ex) {
+			ex.printStackTrace();
+			return -1;
+		}
+
+	}
+
 
 	static boolean readByMovieIdSongId(Connection conn, int movie_id, int song_id) {
 		try {
@@ -248,6 +428,31 @@ public class MovieDriver {
 			PreparedStatement statement = conn.prepareStatement(sql);
 			statement.setInt(1, movie_id);
 			statement.setInt(2, song_id);
+
+			ResultSet result = statement.executeQuery();
+
+			if (result.next()) {
+				result.close();
+				return true;
+
+			} else {
+				result.close();
+				return false;
+			}
+
+		} catch (SQLException ex) {
+			ex.printStackTrace();
+			return false;
+		}
+
+	}
+	static boolean readByMovieIdPersonId(Connection conn, int movie_id, int person_id) {
+		try {
+
+			String sql = "SELECT * from movie_people where movie_id = ? and people_id = ? ";
+			PreparedStatement statement = conn.prepareStatement(sql);
+			statement.setInt(1, movie_id);
+			statement.setInt(2, person_id);
 
 			ResultSet result = statement.executeQuery();
 
@@ -299,4 +504,5 @@ public class MovieDriver {
 		return conn;
 	}
 
+}
 }
