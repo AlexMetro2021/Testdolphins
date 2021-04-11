@@ -18,14 +18,149 @@ public class MovieDriver {
 			}
 
 
-			readMPRTestData(conn);
+		    //  readMPRTestData(conn);
 			//readMSTestData(conn);
+		      readMSPRTestData(conn);
+		      
 		} catch (SQLException ex) {
 			ex.printStackTrace();
 
 		}
 
 	}
+	static void readMSPRTestData(Connection conn) {
+		try {
+
+			String sql = "SELECT * FROM `mspr_test_data` WHERE 1";
+			PreparedStatement statement = conn.prepareStatement(sql);
+
+			ResultSet result = statement.executeQuery();
+
+			int id;
+			String native_name;
+			int year_made;			
+			String title;
+			String stage_name;
+			String role;
+			
+			
+
+			while (result.next()) {
+
+				id = result.getInt("id");
+				year_made = result.getInt("year_made");
+
+				native_name = result.getString("native_name");
+				
+				stage_name = result.getString("stage_name");
+				role = result.getString("role");
+				
+				title = result.getString("title");
+				
+
+				System.out.println("year_made " + year_made + ", native_name " + native_name + ", stage_name " + stage_name + ", role " + role + ", title " + title  );
+				String status = processMovieSongPeople(native_name, year_made, stage_name, title, role);
+				System.out.println("status: " + status);
+				updateExecutionStatusMovieSongPeople(id, status);
+
+			}
+			
+			result.close();
+
+		} catch (SQLException ex) {
+			ex.printStackTrace();
+
+		}
+
+	}
+
+	public static String processMovieSongPeople(String native_name, int year_made, String stage_name, String title, String role) throws SQLException {
+
+		Connection conn = createConnection();
+
+		String status;
+
+		
+		//find movie
+		int movie_id = readMovieIdByNativeNameAndYearMade(conn, native_name, year_made);
+		if (movie_id > 0) {
+			System.out.println("This movie is already present");
+			status = "[2] M ignored";
+		} else {
+			System.out.println("Movie does not exist in the db, it will be added");
+
+			createMovie(conn, native_name, native_name, year_made);
+			movie_id = readMovieIdByNativeNameAndYearMade(conn, native_name, year_made);
+			status = "[1] M created";
+		}
+
+	
+		
+		//find song
+		int song_id = readSongIdByTitle(conn, title);
+		if (song_id > 0) {
+			System.out.println("This song is already present");
+			status = status + "[4] S ignored";
+		} else {
+			System.out.println("Song does not exist in the db, it will be added");
+
+			song_id = readMovieIdByNativeNameAndYearMade(conn, native_name, year_made);
+			createSong(conn, title);
+			song_id = readSongIdByTitle(conn, title);
+
+			status = status + "[3] S created";
+		}
+
+		if (readByMovieIdSongId(conn, movie_id, song_id)) {
+			System.out.println("The movie_song entry is already present");
+			status = status + "[6] MS ignored";
+		} else {
+			System.out.println("The movie_song entry does not exist in the db, it will be added");
+
+			createMovieSongEntry(conn, movie_id, song_id);
+			status = status + "[5] MS created";
+
+		}
+		
+		
+		//find person
+		int person_id = readPersonIdByStageName(conn, stage_name);
+		if (person_id > 0) {
+			System.out.println("This person is already present");
+			status = status + "[7] P ignored";
+		} else {
+			System.out.println("Person does not exist in the db and will be added");
+
+			person_id = createPerson(conn, stage_name);
+			
+			if(person_id > 0) {
+
+				status = status + "[8] P created";
+			}  else {
+				status = status + "[8] P create failed";
+			}
+		}
+		
+
+		//find song people
+		if (readBySongIdPersonIdRole(conn, song_id, person_id, role)) {
+			System.out.println("The song_people entry is already present");
+			status = status + "[9] SP ignored";
+		} else {
+			System.out.println("The movie_people entry does not exist in the db, it will be added");
+
+			createSongPeopleEntry(conn, song_id, person_id, role);
+			status = status + "[9] SP created";
+
+		}
+		
+		
+		
+		conn.close();
+		
+		return status;
+	}
+	//end
 	
 	static void readMPRTestData(Connection conn) {
 		try {
@@ -238,6 +373,23 @@ public class MovieDriver {
 		}
 	}
 
+	static void updateExecutionStatusMovieSongPeople(int id, String execution_status) {
+		try {
+
+			Connection conn = createConnection();
+			String sql = "update mspr_test_data set execution_status=? where id = ? ";
+
+			PreparedStatement statement = conn.prepareStatement(sql);
+			statement.setString(1, execution_status);
+			statement.setInt(2, id);
+
+			statement.executeUpdate();
+			conn.close();
+		} catch (SQLException ex) {
+			ex.printStackTrace();
+		}
+	}
+
 	static void createMovie(Connection conn, String english_name, String native_name, int year_made) {
 
 		try {
@@ -338,6 +490,28 @@ public class MovieDriver {
 		}
 
 	}
+
+	static void createSongPeopleEntry(Connection conn, int song_id, int people_id, String role) {
+
+		try {
+			String sql = "INSERT INTO song_people (song_id , people_id, role) VALUES (?, ?, ?)";
+
+			PreparedStatement statement = conn.prepareStatement(sql);
+			statement.setInt(1, song_id);
+			statement.setInt(2, people_id);
+			statement.setString(3,  role);
+		
+
+			int rowsInserted = statement.executeUpdate();
+			if (rowsInserted > 0) {
+				System.out.println("A new song_people was inserted successfully!");
+			}
+		} catch (SQLException ex) {
+			ex.printStackTrace();
+		}
+
+	}
+
 
 	static int readMovieIdByNativeNameAndYearMade(Connection conn, String native_name, int year_made) {
 		try {
@@ -471,6 +645,33 @@ public class MovieDriver {
 		}
 
 	}
+	static boolean readBySongIdPersonIdRole(Connection conn, int song_id, int person_id, String role) {
+		try {
+
+			String sql = "SELECT * from song_people where people_id = ? and song_id = ? and role = ?";
+			PreparedStatement statement = conn.prepareStatement(sql);
+			statement.setInt(1, person_id);
+			statement.setInt(2, song_id);
+			statement.setString(3,  role);
+			
+
+			ResultSet result = statement.executeQuery();
+
+			if (result.next()) {
+				result.close();
+				return true;
+
+			} else {
+				result.close();
+				return false;
+			}
+
+		} catch (SQLException ex) {
+			ex.printStackTrace();
+			return false;
+		}
+
+	}
 
 	static void readAllMovies(Connection conn) {
 		try {
@@ -504,5 +705,4 @@ public class MovieDriver {
 		return conn;
 	}
 
-}
 }
